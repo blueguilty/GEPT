@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全民英檢中級單字英雄榜</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Poppins:wght@400;600&display=swap');
+        
+        body {
+            font-family: 'Poppins', 'Noto Sans TC', sans-serif;
+            background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+        }
+
+        .game-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .btn-option {
+            transition: all 0.2s ease;
+        }
+        .btn-option:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .btn-option:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        /* Animation for stage clear */
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            80% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-in {
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        .correct-anim { animation: pulse-green 0.5s; }
+        .wrong-anim { animation: shake-red 0.5s; }
+
+        @keyframes pulse-green {
+            0%, 100% { background-color: white; }
+            50% { background-color: #dcfce7; border-color: #22c55e; }
+        }
+        @keyframes shake-red {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); background-color: #fee2e2; border-color: #ef4444; }
+            75% { transform: translateX(5px); background-color: #fee2e2; border-color: #ef4444; }
+        }
+
+        /* Scrollbar for tables */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 relative">
+
+    <div id="app" class="w-full max-w-2xl relative z-10">
+        
+        <!-- Canvas for Confetti -->
+        <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50 w-full h-full hidden"></canvas>
+
+        <!-- MAIN GAME CONTAINER -->
+        <div class="game-card p-6 md:p-8 relative overflow-hidden min-h-[550px] flex flex-col">
+            
+            <!-- Header / HUD -->
+            <div id="hud" class="hidden flex justify-between items-center mb-6 border-b pb-4 border-slate-200">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-bold text-sm">
+                        <span id="player-display-name" class="mr-2 text-slate-800">Player</span>
+                        Stage <span id="stage-display">1</span>
+                    </div>
+                    <div class="text-slate-600 font-semibold">
+                        <i class="fas fa-star text-yellow-400 mr-1"></i> <span id="score-display">0</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-slate-600 font-mono font-bold text-lg">
+                        <i class="fas fa-clock mr-1"></i> <span id="timer-display">10:00</span>
+                    </div>
+                    <div class="text-slate-400 text-sm hidden md:block">
+                        題數: <span id="q-count-display">1</span>/<span id="q-total-display">30</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCREENS -->
+            
+            <!-- 1. Start Screen -->
+            <div id="screen-start" class="flex-1 flex flex-col justify-center items-center text-center space-y-6">
+                <div class="w-20 h-20 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg rotate-3 mb-2">
+                    <i class="fas fa-graduation-cap text-4xl text-white"></i>
+                </div>
+                <h1 class="text-3xl md:text-4xl font-bold text-slate-800">全民英檢中級<br><span class="text-blue-600">單字英雄榜</span></h1>
+                
+                <!-- User Name Input -->
+                <div class="w-full max-w-xs bg-white p-4 rounded-xl shadow-sm border border-blue-100 mt-4">
+                    <label class="block text-left text-xs font-bold text-slate-400 uppercase mb-2">請輸入姓名開始挑戰</label>
+                    <input type="text" id="start-player-name" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-lg text-slate-700" placeholder="王小明">
+                </div>
+
+                <div class="bg-blue-50 p-4 rounded-lg text-left text-sm text-slate-700 space-y-2 w-full max-w-sm">
+                    <p><span class="font-bold text-blue-600">Stage 1:</span> 單字互譯 (10分鐘 / 30題)</p>
+                    <p><span class="font-bold text-blue-600">Stage 2:</span> 句型變化 (10分鐘 / 30題)</p>
+                    <p><span class="font-bold text-blue-600">Stage 3:</span> 進階挑戰 (10分鐘 / 20題)</p>
+                </div>
+
+                <button onclick="game.start()" class="btn-option bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-12 rounded-full shadow-lg text-lg w-full max-w-xs transition-all transform hover:scale-105">
+                    開始挑戰
+                </button>
+            </div>
+
+            <!-- 2. Question Screen -->
+            <div id="screen-game" class="hidden flex-1 flex flex-col">
+                <!-- Progress Bar -->
+                <div class="w-full bg-slate-200 rounded-full h-2 mb-6">
+                    <div id="progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+
+                <div class="flex-1 flex flex-col justify-center">
+                    <div id="question-container" class="text-center space-y-6">
+                        <span id="q-type-tag" class="inline-block bg-indigo-100 text-indigo-700 text-xs px-2 py-1 rounded uppercase font-bold mb-2">英翻中</span>
+                        <h2 id="q-text" class="text-2xl md:text-3xl font-bold text-slate-800 mb-8"></h2>
+                        
+                        <div id="options-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Options injected by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Stage Clear Screen -->
+            <div id="screen-stage-clear" class="hidden flex-1 flex flex-col justify-center items-center text-center space-y-6">
+                <div class="text-6xl mb-4 pop-in">🎉</div>
+                <h2 class="text-3xl font-bold text-slate-800">Stage Clear!</h2>
+                <p class="text-slate-600">恭喜 <span class="current-player-name font-bold text-blue-600"></span> 完成第 <span id="clear-stage-num">1</span> 階段</p>
+                <div class="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                    <p class="text-sm text-yellow-700 font-bold uppercase">目前得分</p>
+                    <p class="text-4xl font-bold text-yellow-500" id="clear-score">0</p>
+                </div>
+                <button onclick="game.nextStage()" class="btn-option bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-10 rounded-full shadow-lg mt-4 text-lg">
+                    進入下一階段 <i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+
+            <!-- 4. Game Over / Leaderboard -->
+            <div id="screen-result" class="hidden flex-1 flex flex-col">
+                <div class="text-center mb-6">
+                    <h2 class="text-3xl font-bold text-slate-800 mb-2">挑戰結束!</h2>
+                    <p class="text-slate-500"><span class="current-player-name font-bold text-blue-600"></span> 的最終成績</p>
+                    <div class="text-5xl font-bold text-blue-600 my-4" id="final-score">0</div>
+                </div>
+
+                <div class="flex-1 overflow-y-auto bg-slate-50 rounded-xl p-4 border border-slate-200 max-h-60 custom-scrollbar">
+                    <h3 class="font-bold text-slate-700 mb-3 flex items-center sticky top-0 bg-slate-50 py-2 border-b"><i class="fas fa-trophy text-yellow-500 mr-2"></i> 英雄榜 Top 10</h3>
+                    <ul id="leaderboard-list" class="space-y-2">
+                        <!-- Leaderboard items -->
+                    </ul>
+                </div>
+
+                <button onclick="location.reload()" class="mt-6 w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 rounded-lg transition">
+                    再次挑戰
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Admin Toggle Button (Bottom Right) -->
+    <button onclick="admin.toggle()" class="fixed bottom-4 right-4 bg-slate-800 text-white p-3 rounded-full shadow-lg hover:bg-slate-700 z-40 opacity-50 hover:opacity-100 transition-opacity" title="教師後台/觀測模式">
+        <i class="fas fa-cog"></i>
+    </button>
+
+    <!-- Admin/Backstage Modal -->
+    <div id="admin-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col relative">
+            <div class="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-2xl">
+                <h2 class="text-xl font-bold text-slate-800"><i class="fas fa-chart-line text-blue-600 mr-2"></i> 學習歷程觀測後台</h2>
+                <div class="space-x-2">
+                    <button onclick="admin.exportCSV()" class="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"><i class="fas fa-file-export mr-1"></i> 匯出Excel</button>
+                    <button onclick="admin.clearData()" class="text-sm bg-red-100 text-red-600 px-3 py-1 rounded hover:bg-red-200"><i class="fas fa-trash mr-1"></i> 清除資料</button>
+                    <button onclick="admin.toggle()" class="text-slate-400 hover:text-slate-600 px-2"><i class="fas fa-times text-xl"></i></button>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-auto p-4 custom-scrollbar">
+                <table class="w-full text-sm text-left text-slate-600">
+                    <thead class="text-xs text-slate-700 uppercase bg-slate-100 sticky top-0">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 rounded-tl-lg">時間</th>
+                            <th scope="col" class="px-4 py-3">姓名</th>
+                            <th scope="col" class="px-4 py-3">分數</th>
+                            <th scope="col" class="px-4 py-3">階段</th>
+                            <th scope="col" class="px-4 py-3 rounded-tr-lg">錯誤單字紀錄 (點擊發音)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-log-body">
+                        <!-- Logs go here -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-2 bg-slate-50 text-xs text-center text-slate-400 border-t rounded-b-2xl">
+                資料儲存於瀏覽器 LocalStorage，清除快取將遺失資料。
+            </div>
+        </div>
+    </div>
+
+    <!-- Explanation Modal -->
+    <div id="explanation-modal" class="fixed inset-0 bg-black/50 z-40 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative transform transition-all scale-100">
+            <div id="modal-header" class="flex items-center justify-between mb-4">
+                <span id="modal-status" class="font-bold text-lg"></span>
+                <button onclick="game.playSound()" class="text-blue-500 hover:text-blue-700 p-2 rounded-full hover:bg-blue-50 transition">
+                    <i class="fas fa-volume-up text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <p class="text-xs text-slate-400 uppercase font-bold">單字 / 句型</p>
+                    <p id="modal-word" class="text-xl font-bold text-slate-800"></p>
+                </div>
+                
+                <div>
+                    <p class="text-xs text-slate-400 uppercase font-bold">解釋 / 翻譯</p>
+                    <p id="modal-meaning" class="text-slate-600"></p>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <p class="text-xs text-slate-400 uppercase font-bold mb-1">例句</p>
+                    <p id="modal-example" class="text-sm text-slate-700 italic"></p>
+                </div>
+            </div>
+
+            <button onclick="game.closeModal()" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow transition">
+                下一題
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA SOURCE (Based on User's PDFs) ---
+        const pdfVocabulary = [
+            { w: "accurate", m: "準確的", p: "adj.", e: "The figures they have used are not accurate.", var: { n: "accuracy" } },
+            { w: "anxious", m: "焦慮的", p: "adj.", e: "Farmers are anxious about the harvest.", var: { n: "anxiety" } },
+            { w: "approach", m: "接近; 處理", p: "v.", e: "We could see the train approaching.", var: {} },
+            { w: "associate", m: "聯想; 聯繫", p: "v.", e: "Most people associate this brand with quality.", var: { n: "association" } },
+            { w: "conflict", m: "衝突", p: "n./v.", e: "New results conflict with existing theories.", var: {} },
+            { w: "conscience", m: "良心", p: "n.", e: "My conscience would bother me.", var: { adj: "conscious" } },
+            { w: "descend", m: "下降", p: "v.", e: "The path descended into the valley.", var: { n: "descent" } },
+            { w: "embarrass", m: "使困窘", p: "v.", e: "You're embarrassing him!", var: { adj: "embarrassing", n: "embarrassment" } },
+            { w: "illegal", m: "非法的", p: "adj.", e: "It is illegal to drive without a license.", var: { adj_opp: "legal" } },
+            { w: "incredible", m: "難以置信的", p: "adj.", e: "The view from the top was incredible.", var: {} },
+            { w: "inherit", m: "繼承", p: "v.", e: "She inherited the house from her father.", var: { n: "inheritance" } },
+            { w: "reserve", m: "預約; 保留", p: "v.", e: "I reserved a table for two.", var: { n: "reservation", adj: "reserved" } },
+            { w: "abuse", m: "濫用; 虐待", p: "v./n.", e: "Drug abuse led to his death.", var: { adj: "abusive" } },
+            { w: "exaggerate", m: "誇大", p: "v.", e: "Don't exaggerate the problem.", var: { n: "exaggeration" } },
+            { w: "negotiation", m: "談判", p: "n.", e: "The negotiation lasted for hours.", var: { v: "negotiate" } },
+            { w: "outcome", m: "結果", p: "n.", e: "We are waiting for the outcome of the election.", var: {} },
+            { w: "pessimism", m: "悲觀主義", p: "n.", e: "There is a mood of pessimism.", var: { adj: "pessimistic" } },
+            { w: "ignore", m: "忽視", p: "v.", e: "He ignored my advice.", var: { n: "ignorance", adj: "ignorant" } },
+            { w: "create", m: "創造", p: "v.", e: "The project will create new jobs.", var: { n: "creation", adj: "creative" } },
+            { w: "ambition", m: "抱負; 野心", p: "n.", e: "His ambition is to run his own business.", var: { adj: "ambitious" } },
+            { w: "evidence", m: "證據", p: "n.", e: "There is no evidence to support this claim.", var: { adj: "evident" } },
+            { w: "resident", m: "居民", p: "n.", e: "Local residents are happy.", var: { v: "reside", n_place: "residence" } },
+            { w: "apply", m: "申請; 應用", p: "v.", e: "He applied for a scholarship.", var: { n: "application", n_person: "applicant" } },
+            { w: "differ", m: "不同", p: "v.", e: "Opinions differ on this matter.", var: { n: "difference", adj: "different" } }
+        ];
+
+        const extraVocabulary = [
+            { w: "prohibit", m: "禁止", p: "v.", e: "Smoking is prohibited here." },
+            { w: "opportunity", m: "機會", p: "n.", e: "Don't miss this opportunity." },
+            { w: "challenge", m: "挑戰", p: "n./v.", e: "He accepted the challenge." },
+            { w: "communicate", m: "溝通", p: "v.", e: "We communicate by email." },
+            { w: "environment", m: "環境", p: "n.", e: "We must protect the environment." },
+            { w: "positive", m: "正面的; 積極的", p: "adj.", e: "He has a positive attitude." },
+            { w: "resource", m: "資源", p: "n.", e: "Time is a valuable resource." },
+            { w: "technology", m: "科技", p: "n.", e: "Modern technology makes life easier." },
+            { w: "solution", m: "解決方案", p: "n.", e: "We need to find a solution." },
+            { w: "benefit", m: "利益; 好處", p: "n./v.", e: "The new plan will benefit everyone." }
+        ];
+
+        // --- GAME ENGINE ---
+        const game = {
+            playerName: 'Anonymous',
+            stage: 0,
+            score: 0,
+            timer: 0,
+            timerInterval: null,
+            currentQIndex: 0,
+            maxQ: 0,
+            questions: [],
+            isPaused: false,
+            currentQ: null,
+            sessionMistakes: [], // Track wrong answers for this session
+
+            // Init
+            init: function() {
+                this.renderLeaderboard();
+                admin.init();
+            },
+
+            start: function() {
+                // Get Player Name
+                const inputName = document.getElementById('start-player-name').value.trim();
+                if (!inputName) {
+                    alert("請輸入您的名字！");
+                    return;
+                }
+                this.playerName = inputName;
+                
+                // Update Name Display
+                document.querySelectorAll('.current-player-name').forEach(el => el.innerText = this.playerName);
+                document.getElementById('player-display-name').innerText = this.playerName;
+
+                this.stage = 1;
+                this.score = 0;
+                this.sessionMistakes = []; // Reset mistakes
+                
+                this.showScreen('screen-game');
+                this.initStage(1);
+            },
+
+            initStage: function(stageNum) {
+                this.stage = stageNum;
+                this.currentQIndex = 0;
+                this.isPaused = false;
+                
+                // Set Rules
+                this.timer = 600; 
+                this.maxQ = (stageNum === 3) ? 20 : 30;
+
+                this.questions = this.generateQuestions(stageNum, this.maxQ);
+                
+                // Update HUD
+                document.getElementById('hud').classList.remove('hidden');
+                document.getElementById('stage-display').innerText = stageNum;
+                document.getElementById('q-total-display').innerText = this.maxQ;
+                this.updateHUD();
+
+                // Start Timer
+                if (this.timerInterval) clearInterval(this.timerInterval);
+                this.timerInterval = setInterval(() => this.tick(), 1000);
+
+                this.nextQuestion();
+            },
+
+            generateQuestions: function(stage, count) {
+                let qList = [];
+                const pool = (stage === 3) ? extraVocabulary : pdfVocabulary;
+                
+                for (let i = 0; i < count; i++) {
+                    const item = pool[Math.floor(Math.random() * pool.length)];
+                    let question = {};
+                    
+                    if (stage === 1) {
+                        const type = Math.random() > 0.5 ? 'en_ch' : 'ch_en';
+                        question = {
+                            type: type,
+                            word: item.w,
+                            meaning: item.m,
+                            example: item.e,
+                            text: type === 'en_ch' ? item.w : item.m,
+                            correct: type === 'en_ch' ? item.m : item.w,
+                            options: this.generateOptions(item, pool, type)
+                        };
+                    } else if (stage === 2) {
+                        const hasVars = item.var && Object.keys(item.var).length > 0;
+                        if (hasVars && Math.random() > 0.3) {
+                            const varKey = Object.keys(item.var)[0];
+                            const varWord = item.var[varKey];
+                            question = {
+                                type: 'variation',
+                                word: item.w,
+                                meaning: `請選擇單字 "${item.w}" 的 ${varKey} (詞性變化)形式`,
+                                example: `Original: ${item.e}`,
+                                text: `"${item.w}" 的 ${this.getPosLabel(varKey)} 是？`,
+                                correct: varWord,
+                                options: this.generateVariationOptions(varWord, item.w, pool)
+                            };
+                        } else {
+                            const sentence = item.e.replace(new RegExp(item.w, 'gi'), '______');
+                            question = {
+                                type: 'cloze',
+                                word: item.w,
+                                meaning: item.m,
+                                example: item.e,
+                                text: sentence,
+                                correct: item.w,
+                                options: this.generateOptions(item, pool, 'ch_en')
+                            };
+                        }
+                    } else {
+                        const sentence = item.e.replace(new RegExp(item.w, 'gi'), '______');
+                        question = {
+                            type: 'ext_cloze',
+                            word: item.w,
+                            meaning: item.m,
+                            example: item.e,
+                            text: sentence,
+                            correct: item.w,
+                            options: this.generateOptions(item, pool, 'ch_en')
+                        };
+                    }
+                    qList.push(question);
+                }
+                return qList;
+            },
+
+            getPosLabel: function(key) {
+                const map = { n: '名詞', v: '動詞', adj: '形容詞', adv: '副詞', n_person: '人物名詞' };
+                return map[key] || key;
+            },
+
+            generateOptions: function(correctItem, pool, type) {
+                let opts = new Set();
+                opts.add(type === 'en_ch' ? correctItem.m : correctItem.w);
+                while(opts.size < 4) {
+                    const random = pool[Math.floor(Math.random() * pool.length)];
+                    const val = type === 'en_ch' ? random.m : random.w;
+                    if (val !== (type === 'en_ch' ? correctItem.m : correctItem.w)) {
+                        opts.add(val);
+                    }
+                }
+                return Array.from(opts).sort(() => Math.random() - 0.5);
+            },
+
+            generateVariationOptions: function(correctWord, baseWord, pool) {
+                let opts = new Set();
+                opts.add(correctWord);
+                opts.add(baseWord);
+                while(opts.size < 4) {
+                    const random = pool[Math.floor(Math.random() * pool.length)];
+                    if (random.w !== correctWord) opts.add(random.w);
+                }
+                return Array.from(opts).sort(() => Math.random() - 0.5);
+            },
+
+            tick: function() {
+                if (this.isPaused) return;
+                this.timer--;
+                this.updateHUD();
+                
+                if (this.timer <= 0) {
+                    this.finishStage();
+                }
+            },
+
+            updateHUD: function() {
+                const m = Math.floor(this.timer / 60);
+                const s = this.timer % 60;
+                document.getElementById('timer-display').innerText = `${m}:${s < 10 ? '0'+s : s}`;
+                document.getElementById('score-display').innerText = this.score;
+                document.getElementById('q-count-display').innerText = this.currentQIndex + 1;
+                
+                const pct = ((this.currentQIndex) / this.maxQ) * 100;
+                document.getElementById('progress-bar').style.width = `${pct}%`;
+            },
+
+            nextQuestion: function() {
+                if (this.currentQIndex >= this.maxQ) {
+                    this.finishStage();
+                    return;
+                }
+
+                this.currentQ = this.questions[this.currentQIndex];
+                this.renderQuestion();
+            },
+
+            renderQuestion: function() {
+                const q = this.currentQ;
+                const typeLabels = {
+                    'en_ch': '英翻中', 'ch_en': '中翻英', 
+                    'variation': '詞類變化', 'cloze': '句型填空', 'ext_cloze': '進階填空'
+                };
+                
+                document.getElementById('q-type-tag').innerText = typeLabels[q.type];
+                document.getElementById('q-text').innerText = q.text;
+                
+                const grid = document.getElementById('options-grid');
+                grid.innerHTML = '';
+                
+                q.options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-option w-full bg-white border-2 border-blue-100 hover:border-blue-400 text-slate-700 font-semibold py-4 px-6 rounded-xl text-lg shadow-sm';
+                    btn.innerText = opt;
+                    btn.onclick = () => this.handleAnswer(btn, opt);
+                    grid.appendChild(btn);
+                });
+            },
+
+            handleAnswer: function(btn, selected) {
+                if (this.isPaused) return;
+                this.isPaused = true;
+                
+                const isCorrect = selected === this.currentQ.correct;
+                
+                if (isCorrect) {
+                    btn.classList.remove('border-blue-100', 'hover:border-blue-400');
+                    btn.classList.add('bg-green-100', 'border-green-500', 'text-green-700', 'correct-anim');
+                    this.score += (this.stage === 3 ? 15 : 10); 
+                } else {
+                    btn.classList.remove('border-blue-100', 'hover:border-blue-400');
+                    btn.classList.add('bg-red-100', 'border-red-500', 'text-red-700', 'wrong-anim');
+                    
+                    // Highlight correct one
+                    const buttons = document.querySelectorAll('.btn-option');
+                    buttons.forEach(b => {
+                        if (b.innerText === this.currentQ.correct) {
+                            b.classList.add('bg-green-50', 'border-green-300', 'text-green-700');
+                        }
+                    });
+
+                    // RECORD MISTAKE (Admin feature)
+                    // Check if already recorded for this session to avoid dupes if clicked multiple times (though paused)
+                    this.sessionMistakes.push(this.currentQ.word);
+                }
+
+                this.updateHUD();
+
+                setTimeout(() => {
+                    this.showExplanation(isCorrect);
+                }, 600);
+            },
+
+            showExplanation: function(isCorrect) {
+                const modal = document.getElementById('explanation-modal');
+                const status = document.getElementById('modal-status');
+                
+                status.innerHTML = isCorrect 
+                    ? '<span class="text-green-600"><i class="fas fa-check-circle"></i> Correct!</span>' 
+                    : '<span class="text-red-500"><i class="fas fa-times-circle"></i> Incorrect</span>';
+
+                document.getElementById('modal-word').innerText = this.currentQ.word;
+                document.getElementById('modal-meaning').innerText = this.currentQ.meaning;
+                document.getElementById('modal-example').innerText = this.currentQ.example;
+                
+                modal.classList.remove('hidden');
+                
+                if (isCorrect) this.speak(this.currentQ.word);
+            },
+
+            closeModal: function() {
+                document.getElementById('explanation-modal').classList.add('hidden');
+                this.isPaused = false;
+                this.currentQIndex++;
+                this.nextQuestion();
+            },
+
+            playSound: function() {
+                this.speak(this.currentQ.word);
+            },
+
+            speak: function(text) {
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.lang = 'en-US';
+                window.speechSynthesis.speak(utter);
+            },
+
+            finishStage: function() {
+                clearInterval(this.timerInterval);
+                
+                if (this.stage < 3) {
+                    this.showScreen('screen-stage-clear');
+                    document.getElementById('clear-stage-num').innerText = this.stage;
+                    document.getElementById('clear-score').innerText = this.score;
+                    this.fireConfetti();
+                } else {
+                    this.endGame();
+                }
+            },
+
+            nextStage: function() {
+                this.initStage(this.stage + 1);
+                this.showScreen('screen-game');
+            },
+
+            endGame: function() {
+                this.showScreen('screen-result');
+                document.getElementById('hud').classList.add('hidden');
+                document.getElementById('final-score').innerText = this.score;
+                this.fireConfetti();
+                
+                // Automatically save logic
+                this.saveSession();
+            },
+
+            // Updated Save Logic (Leaderboard + Detailed Logs)
+            saveSession: function() {
+                const dateStr = new Date().toLocaleString('zh-TW');
+                
+                // 1. Update Leaderboard (Simple High Scores)
+                const scores = JSON.parse(localStorage.getItem('gept_hero_scores') || '[]');
+                scores.push({ name: this.playerName, score: this.score, date: dateStr.split(' ')[0] });
+                scores.sort((a, b) => b.score - a.score);
+                localStorage.setItem('gept_hero_scores', JSON.stringify(scores.slice(0, 10)));
+                this.renderLeaderboard();
+
+                // 2. Update Detailed Admin Logs
+                const logs = JSON.parse(localStorage.getItem('gept_hero_logs') || '[]');
+                logs.push({
+                    timestamp: Date.now(),
+                    dateStr: dateStr,
+                    name: this.playerName,
+                    score: this.score,
+                    stage: this.stage,
+                    mistakes: [...new Set(this.sessionMistakes)] // Remove duplicates
+                });
+                localStorage.setItem('gept_hero_logs', JSON.stringify(logs));
+                
+                // Refresh Admin UI if open
+                admin.renderLogs();
+            },
+
+            renderLeaderboard: function() {
+                const list = document.getElementById('leaderboard-list');
+                const scores = JSON.parse(localStorage.getItem('gept_hero_scores') || '[]');
+                
+                list.innerHTML = scores.length ? '' : '<li class="text-center text-slate-400 py-4">暫無紀錄，快來挑戰!</li>';
+                
+                scores.forEach((s, i) => {
+                    const li = document.createElement('li');
+                    li.className = 'flex justify-between items-center bg-white p-3 rounded border border-slate-100 shadow-sm';
+                    li.innerHTML = `
+                        <span class="font-bold ${i < 3 ? 'text-yellow-600' : 'text-slate-600'}">#${i+1} ${s.name}</span>
+                        <div class="text-right">
+                             <span class="text-blue-600 font-mono font-bold block">${s.score}</span>
+                             <span class="text-xs text-slate-400">${s.date}</span>
+                        </div>
+                    `;
+                    list.appendChild(li);
+                });
+            },
+
+            showScreen: function(id) {
+                ['screen-start', 'screen-game', 'screen-stage-clear', 'screen-result'].forEach(s => {
+                    document.getElementById(s).classList.add('hidden');
+                });
+                document.getElementById(id).classList.remove('hidden');
+            },
+
+            fireConfetti: function() {
+                const canvas = document.getElementById('confetti-canvas');
+                canvas.classList.remove('hidden');
+                
+                const ctx = canvas.getContext('2d');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                const particles = [];
+                const colors = ['#3b82f6', '#ef4444', '#22c55e', '#eab308', '#a855f7'];
+                
+                for(let i=0; i<150; i++) {
+                    particles.push({
+                        x: canvas.width/2,
+                        y: canvas.height/2,
+                        vx: (Math.random() - 0.5) * 15,
+                        vy: (Math.random() - 0.5) * 15,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        size: Math.random() * 8 + 4,
+                        life: 100
+                    });
+                }
+                
+                function animate() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    let active = false;
+                    particles.forEach(p => {
+                        if (p.life > 0) {
+                            active = true;
+                            p.x += p.vx;
+                            p.y += p.vy;
+                            p.vy += 0.2;
+                            p.life--;
+                            p.size *= 0.96;
+                            ctx.fillStyle = p.color;
+                            ctx.beginPath();
+                            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    });
+                    if (active) requestAnimationFrame(animate);
+                    else canvas.classList.add('hidden');
+                }
+                animate();
+            }
+        };
+
+        // --- ADMIN PANEL ENGINE ---
+        const admin = {
+            init: function() {
+                this.renderLogs();
+            },
+            
+            toggle: function() {
+                const modal = document.getElementById('admin-modal');
+                const isHidden = modal.classList.contains('hidden');
+                if (isHidden) {
+                    modal.classList.remove('hidden');
+                    this.renderLogs();
+                } else {
+                    modal.classList.add('hidden');
+                }
+            },
+
+            renderLogs: function() {
+                const logs = JSON.parse(localStorage.getItem('gept_hero_logs') || '[]');
+                const tbody = document.getElementById('admin-log-body');
+                tbody.innerHTML = '';
+
+                // Sort by time descending
+                logs.sort((a, b) => b.timestamp - a.timestamp);
+
+                if (logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">目前沒有學習紀錄</td></tr>';
+                    return;
+                }
+
+                logs.forEach(log => {
+                    const mistakesHtml = log.mistakes.length > 0 
+                        ? log.mistakes.map(w => `<span class="inline-block bg-red-100 text-red-600 px-2 py-0.5 rounded text-xs mr-1 mb-1 cursor-pointer hover:bg-red-200" onclick="game.speak('${w}')">${w} <i class="fas fa-volume-up text-[10px]"></i></span>`).join('') 
+                        : '<span class="text-green-500 text-xs"><i class="fas fa-check"></i> Perfect!</span>';
+
+                    const tr = document.createElement('tr');
+                    tr.className = "border-b hover:bg-slate-50 transition";
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 whitespace-nowrap text-slate-500 text-xs">${log.dateStr}</td>
+                        <td class="px-4 py-3 font-bold text-slate-700">${log.name}</td>
+                        <td class="px-4 py-3 text-blue-600 font-bold">${log.score}</td>
+                        <td class="px-4 py-3 text-center"><span class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-xs">S${log.stage}</span></td>
+                        <td class="px-4 py-3">${mistakesHtml}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            },
+
+            clearData: function() {
+                if(confirm("確定要清除所有學習紀錄和英雄榜嗎？(此操作無法復原)")) {
+                    localStorage.removeItem('gept_hero_logs');
+                    localStorage.removeItem('gept_hero_scores');
+                    this.renderLogs();
+                    game.renderLeaderboard();
+                }
+            },
+
+            exportCSV: function() {
+                const logs = JSON.parse(localStorage.getItem('gept_hero_logs') || '[]');
+                if(logs.length === 0) { alert("沒有資料可匯出"); return; }
+
+                // Add BOM for Excel Chinese character support
+                let csvContent = "\uFEFF"; 
+                csvContent += "時間,姓名,分數,到達階段,錯誤單字\n";
+
+                logs.forEach(log => {
+                    // Escape quotes for CSV
+                    const mistakeStr = log.mistakes.join('; ').replace(/"/g, '""');
+                    csvContent += `"${log.dateStr}","${log.name}","${log.score}","${log.stage}","${mistakeStr}"\n`;
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", "english_hero_logs.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        };
+
+        // Init Game
+        game.init();
+
+    </script>
+</body>
+</html>
